@@ -1,0 +1,8 @@
+build/
+deps/llvm-mingw/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+compile_commands.json
+CMakeFiles
+.cache
