@@ -4,6 +4,8 @@ This Max/MSP object loads and runs neural amplifier models in real time.
 
 It supports [NAM](https://www.neuralampmodeler.com/) and [AIDA-X](https://aida-x.cc/) models, and handles resampling to the host rate.
 
+Sound demo via Max for Live: [Live Amp Modeler](https://www.youtube.com/watch?v=m2VRggzL93I).
+
 The object's inlet accepts the following messages:
 
 - *(signal)*: The mono audio signal.
