@@ -34,6 +34,7 @@ supported via mingw-w64.
 
 Dependencies:
 
+- <https://cmake.org>
 - <https://github.com/Cycling74/min-devkit>
 - <https://github.com/mikeoliphant/NeuralAudio>
 - <https://github.com/sdatkinson/AudioDSPTools>
