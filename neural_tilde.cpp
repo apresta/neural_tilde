@@ -13,19 +13,8 @@
 
 using namespace c74::min;
 
-#include "NeuralModel.h"
-
-// LanczosResampler uses iplug::PI but the Max SDK also defines PI.
-// Undefine first and then provide the missing iplug::PI.
-#ifdef PI
-#undef PI
-#endif
-
-namespace iplug {
-constexpr double PI = 3.14159265358979323846;
-}
-
 #include "LanczosResampler.h"
+#include "NeuralModel.h"
 
 // Flush denormal floats to zero to avoid CPU stalls.
 #if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || \

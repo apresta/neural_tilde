@@ -11,9 +11,10 @@ set(MIN_API_PATH "${MIN_DEVKIT_PATH}/source/min-api" CACHE PATH
   "Path to Min API")
 set(NEURAL_AUDIO_PATH "${CMAKE_SOURCE_DIR}/deps/NeuralAudio" CACHE PATH
   "Path to NeuralAudio")
-set(LANCZOS_RESAMPLER_PATH
-  "${CMAKE_SOURCE_DIR}/deps/AudioDSPTools/dsp/ResamplingContainer/Dependencies"
-  CACHE PATH "Path to LanczosResampler.h")
+set(DSP_PATH
+  "${CMAKE_SOURCE_DIR}/dsp" CACHE PATH "Path to DSP libraries")
+set(SIMDE_PATH "${CMAKE_SOURCE_DIR}/deps/simde" CACHE PATH
+  "Path to simde headers")
 
 set(MAX_EXTERNALS_DIR
   "$ENV{HOME}/Documents/Max ${MAX_VERSION}/Packages/neural/externals"
@@ -22,18 +23,18 @@ set(MAX_EXTERNALS_DIR
 set(LLVM_MINGW_PREFIX "${CMAKE_SOURCE_DIR}/deps/llvm-mingw" CACHE PATH
   "Path to llvm-mingw cross-compiler")
 
-option(NT_SUPERBUILD "Build macOS and Windows externals in one pass" ON)
+option(SUPERBUILD "Build macOS and Windows externals in one pass" ON)
 
-if(NT_SUPERBUILD AND NOT CMAKE_CROSSCOMPILING)
+if(SUPERBUILD AND NOT CMAKE_CROSSCOMPILING)
   include(ExternalProject)
 
   set(_fwd
-    -DNT_SUPERBUILD=OFF
+    -DSUPERBUILD=OFF
     -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
     -DCMAKE_EXPORT_COMPILE_COMMANDS=${CMAKE_EXPORT_COMPILE_COMMANDS}
     -DMIN_DEVKIT_PATH=${MIN_DEVKIT_PATH}
     -DNEURAL_AUDIO_PATH=${NEURAL_AUDIO_PATH}
-    -DLANCZOS_RESAMPLER_PATH=${LANCZOS_RESAMPLER_PATH}
+    -DDSP_PATH=${DSP_PATH}
     -DMAX_EXTERNALS_DIR=${MAX_EXTERNALS_DIR}
   )
 
@@ -64,13 +65,6 @@ endif()
 
 # Dependency checks.
 
-if(NOT EXISTS "${LANCZOS_RESAMPLER_PATH}/LanczosResampler.h")
-  message(FATAL_ERROR
-    "LanczosResampler.h not found at "
-    "LANCZOS_RESAMPLER_PATH='${LANCZOS_RESAMPLER_PATH}'.\n"
-    "Add the submodule and run: git submodule update --init --recursive")
-endif()
-
 if(NOT EXISTS "${MIN_API_PATH}/include/c74_min.h")
   if(EXISTS "${MIN_DEVKIT_PATH}/.gitmodules" AND
     NOT EXISTS "${MIN_API_PATH}/include")
@@ -87,6 +81,21 @@ if(NOT EXISTS "${NEURAL_AUDIO_PATH}/CMakeLists.txt")
     "NeuralAudio not found at '${NEURAL_AUDIO_PATH}'.\n"
     "Run: git submodule update --init --recursive")
 endif()
+
+if(APPLE AND NOT EXISTS "${SIMDE_PATH}/simde/x86/sse2.h")
+  message(FATAL_ERROR
+    "simde not found at '${SIMDE_PATH}'.\n"
+    "Run: git submodule update --init --recursive")
+endif()
+
+set(BUILD_NAMCORE ON CACHE BOOL "" FORCE)
+set(NAM_USE_INLINE_GEMM ON CACHE BOOL "" FORCE)
+set(NAM_ENABLE_A2_FAST ON CACHE BOOL "" FORCE)
+set(BUILD_STATIC_RTNEURAL ON CACHE BOOL "" FORCE)
+set(BUILD_INTERNAL_STATIC_WAVENET ON CACHE BOOL "" FORCE)
+set(BUILD_INTERNAL_STATIC_LSTM ON CACHE BOOL "" FORCE)
+set(BUILD_UTILS OFF CACHE BOOL "" FORCE)
+set(SIMDE ON CACHE BOOL "" FORCE)
 
 set(CMAKE_WARN_DEPRECATED OFF CACHE BOOL "" FORCE)
 add_compile_options(-Wno-deprecated-literal-operator)
@@ -156,6 +165,10 @@ endif()
 
 target_compile_definitions(neural_tilde PRIVATE NOMINMAX)
 
+if(APPLE)
+  target_compile_definitions(neural_tilde PRIVATE SIMDE)
+endif()
+
 target_compile_options(neural_tilde PRIVATE
   -O3
   -ffast-math
@@ -170,7 +183,8 @@ target_include_directories(neural_tilde SYSTEM PRIVATE
   "${NEURAL_AUDIO_PATH}/NeuralAudio"
   "${NEURAL_AUDIO_PATH}/NeuralAudio/deps/RTNeural/modules/json"
   ${MIN_INCLUDES}
-  ${LANCZOS_RESAMPLER_PATH}
+  ${DSP_PATH}
+  $<$<BOOL:${APPLE}>:${SIMDE_PATH}>
 )
 
 target_link_libraries(neural_tilde PRIVATE NeuralAudio)

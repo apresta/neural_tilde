@@ -10,32 +10,11 @@ LLVM_MINGW_DIR="deps/llvm-mingw"
 LLVM_MINGW_SENTINEL="${LLVM_MINGW_DIR}/bin/x86_64-w64-mingw32-clang"
 
 # Clean build artifacts if requested.
-if [[ "${NT_CLEAN:-0}" == "1" ]]; then
+if [[ "${CLEAN:-0}" == "1" ]]; then
   echo "==> Cleaning build artifacts"
   rm -rf build/ CMakeFiles/ .cache/
   rm -f CMakeCache.txt Makefile cmake_install.cmake
 fi
-
-# Add any missing submodules.
-echo "==> Checking submodules"
-SUBMODULE_PATHS=(
-  "deps/min-devkit"
-  "deps/NeuralAudio"
-  "deps/AudioDSPTools"
-)
-SUBMODULE_URLS=(
-  "https://github.com/Cycling74/min-devkit.git"
-  "https://github.com/mikeoliphant/NeuralAudio.git"
-  "https://github.com/sdatkinson/AudioDSPTools.git"
-)
-for i in "${!SUBMODULE_PATHS[@]}"; do
-  path="${SUBMODULE_PATHS[$i]}"
-  url="${SUBMODULE_URLS[$i]}"
-  if [[ ! -f "${path}/.git" ]]; then
-    echo "  Adding missing submodule: ${path}"
-    git submodule add -f "${url}" "${path}"
-  fi
-done
 
 echo "==> Updating submodules"
 git submodule update --init --recursive
