@@ -37,5 +37,6 @@ Dependencies:
 - <https://cmake.org>
 - <https://github.com/Cycling74/min-devkit>
 - <https://github.com/mikeoliphant/NeuralAudio>
+- <https://github.com/simd-everywhere/simde>
 - <https://clang.llvm.org/> (for MacOS build)
 - <https://github.com/mstorsjo/llvm-mingw> (for Windows build)
