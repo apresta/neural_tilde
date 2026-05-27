@@ -13,8 +13,6 @@ set(NEURAL_AUDIO_PATH "${CMAKE_SOURCE_DIR}/deps/NeuralAudio" CACHE PATH
   "Path to NeuralAudio")
 set(DSP_PATH
   "${CMAKE_SOURCE_DIR}/dsp" CACHE PATH "Path to DSP libraries")
-set(SIMDE_PATH "${CMAKE_SOURCE_DIR}/deps/simde" CACHE PATH
-  "Path to simde headers")
 
 set(MAX_EXTERNALS_DIR
   "$ENV{HOME}/Documents/Max ${MAX_VERSION}/Packages/neural/externals"
@@ -82,18 +80,11 @@ if(NOT EXISTS "${NEURAL_AUDIO_PATH}/CMakeLists.txt")
     "Run: git submodule update --init --recursive")
 endif()
 
-if(APPLE AND NOT EXISTS "${SIMDE_PATH}/simde/x86/sse2.h")
-  message(FATAL_ERROR
-    "simde not found at '${SIMDE_PATH}'.\n"
-    "Run: git submodule update --init --recursive")
-endif()
-
 set(NAM_USE_INLINE_GEMM ON CACHE BOOL "" FORCE)
 set(NAM_ENABLE_A2_FAST ON CACHE BOOL "" FORCE)
 set(BUILD_INTERNAL_STATIC_WAVENET ON CACHE BOOL "" FORCE)
 set(BUILD_INTERNAL_STATIC_LSTM ON CACHE BOOL "" FORCE)
 set(BUILD_UTILS OFF CACHE BOOL "" FORCE)
-set(SIMDE ON CACHE BOOL "" FORCE)
 
 set(CMAKE_WARN_DEPRECATED OFF CACHE BOOL "" FORCE)
 add_compile_options(-Wno-deprecated-literal-operator)
@@ -163,10 +154,6 @@ endif()
 
 target_compile_definitions(neural_tilde PRIVATE NOMINMAX)
 
-if(APPLE)
-  target_compile_definitions(neural_tilde PRIVATE SIMDE)
-endif()
-
 target_compile_options(neural_tilde PRIVATE
   -O3
   -ffast-math
@@ -182,7 +169,6 @@ target_include_directories(neural_tilde SYSTEM PRIVATE
   "${NEURAL_AUDIO_PATH}/NeuralAudio/deps/RTNeural/modules/json"
   ${MIN_INCLUDES}
   ${DSP_PATH}
-  $<$<BOOL:${APPLE}>:${SIMDE_PATH}>
 )
 
 target_link_libraries(neural_tilde PRIVATE NeuralAudio)

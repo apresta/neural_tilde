@@ -1,7 +1,7 @@
 // This file was copied from the version in AudioDSPTools, and modified as
 // follows:
 //   * Defined kPi to eliminate dependency on iPlug 2
-//   * Enabled SIMDE
+//   * Removed SIMD code paths
 
 // File: LanczosResampler.h
 // Created Date: Saturday December 16th 2023
@@ -102,27 +102,13 @@ iPlug 2 includes the following 3rd party libraries (see each license info):
 #include <cstring>
 #include <utility>
 
-#ifdef SIMDE
-#if defined(__aarch64__) || defined(__arm64__) || defined(_M_ARM64)
-#define SIMDE_ENABLE_NATIVE_ALIASES
-#include "simde/x86/sse2.h"
-#else
-#include <emmintrin.h>
-#endif
-#endif
-
 namespace dsp {
 
 constexpr auto kPi = 3.14159265358979323846;
 
 /* LanczosResampler
  *
- * A class that implement Lanczos resampling, optionally using SIMD
- instructions.
- * Define SIMDE at project level in order to use SIMD and if on
- non-x86_64
- * include the SIMDE library in your search paths in order to translate intel
- * intrinsics to e.g. arm64
+ * A class that implements Lanczos resampling.
  *
  * See https://en.wikipedia.org/wiki/Lanczos_resampling
  *
@@ -135,12 +121,6 @@ constexpr auto kPi = 3.14159265358979323846;
 template <typename T = double, int NCHANS = 2, size_t A = 12>
 class LanczosResampler {
  private:
-#ifdef SIMDE
-  static_assert(
-      std::is_same<T, float>::value,
-      "LanczosResampler requires T to be float when using SIMD instructions");
-#endif
-
   // The buffer size. This needs to be at least as large as the largest block of
   // samples that the input side will see. WARNING: hard-coded to accommodate
   // 8192 samples, from 44.1 to 192k! If someone is past this, then maybe they
@@ -250,64 +230,6 @@ class LanczosResampler {
   }
 
  private:
-#ifdef SIMDE
-  inline void ReadSamples(double xBack, T** outputs, int s) const {
-    float bufferReadPosition = static_cast<float>(mWritePos - xBack);
-    int bufferReadIndex = static_cast<int>(std::floor(bufferReadPosition));
-    float bufferFracPosition =
-        1.0f - (bufferReadPosition - static_cast<float>(bufferReadIndex));
-
-    bufferReadIndex = (bufferReadIndex + kBufferSize) & (kBufferSize - 1);
-    bufferReadIndex += (bufferReadIndex <= static_cast<int>(A)) * kBufferSize;
-
-    float tablePosition = bufferFracPosition * kTablePoints;
-    int tableIndex = static_cast<int>(tablePosition);
-    float tableFracPosition = (tablePosition - tableIndex);
-
-    __m128 sum[NCHANS];
-    for (auto& v : sum) {
-      v = _mm_setzero_ps();  // Initialize sum vectors to zero
-    }
-
-    for (int i = 0; i < A; i += 4)  // Process four samples at a time
-    {
-      // Load filter coefficients and input samples into SSE registers
-      __m128 f0 = _mm_load_ps(&sTable[tableIndex][i]);
-      __m128 df0 = _mm_load_ps(&sDeltaTable[tableIndex][i]);
-      __m128 f1 = _mm_load_ps(&sTable[tableIndex][A + i]);
-      __m128 df1 = _mm_load_ps(&sDeltaTable[tableIndex][A + i]);
-
-      // Interpolate filter coefficients
-      __m128 tfp = _mm_set1_ps(tableFracPosition);
-      f0 = _mm_add_ps(f0, _mm_mul_ps(df0, tfp));
-      f1 = _mm_add_ps(f1, _mm_mul_ps(df1, tfp));
-
-      for (int c = 0; c < NCHANS; c++) {
-        // Load input data
-        __m128 d0 = _mm_set_ps(mInputBuffer[c][bufferReadIndex - A + i + 3],
-                               mInputBuffer[c][bufferReadIndex - A + i + 2],
-                               mInputBuffer[c][bufferReadIndex - A + i + 1],
-                               mInputBuffer[c][bufferReadIndex - A + i]);
-        __m128 d1 = _mm_set_ps(mInputBuffer[c][bufferReadIndex + i + 3],
-                               mInputBuffer[c][bufferReadIndex + i + 2],
-                               mInputBuffer[c][bufferReadIndex + i + 1],
-                               mInputBuffer[c][bufferReadIndex + i]);
-
-        // Perform multiplication and accumulate
-        __m128 result0 = _mm_mul_ps(f0, d0);
-        __m128 result1 = _mm_mul_ps(f1, d1);
-        sum[c] = _mm_add_ps(sum[c], _mm_add_ps(result0, result1));
-      }
-    }
-
-    // Extract the final sums and store them in the output
-    for (int c = 0; c < NCHANS; c++) {
-      float sumArray[4];
-      _mm_store_ps(sumArray, sum[c]);
-      outputs[c][s] = sumArray[0] + sumArray[1] + sumArray[2] + sumArray[3];
-    }
-  }
-#else  // scalar
   inline void ReadSamples(double xBack, T** outputs, int s) const {
     double bufferReadPosition = mWritePos - xBack;
     int bufferReadIndex = std::floor(bufferReadPosition);
@@ -341,7 +263,7 @@ class LanczosResampler {
 
     for (auto c = 0; c < NCHANS; c++) { outputs[c][s] = sum[c]; }
   }
-#endif
+
   void SetPhases() {
     // This is going to assume I can treat the sample rates as longs...
     // But if they're not, then things will sound just a little wrong and
