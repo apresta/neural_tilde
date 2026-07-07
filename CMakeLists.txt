@@ -9,15 +9,13 @@ set(MIN_DEVKIT_PATH "${CMAKE_SOURCE_DIR}/deps/min-devkit" CACHE PATH
   "Path to Min-DevKit")
 set(MIN_API_PATH "${MIN_DEVKIT_PATH}/source/min-api" CACHE PATH
   "Path to Min API")
-set(NEURAL_AUDIO_PATH "${CMAKE_SOURCE_DIR}/deps/NeuralAudio" CACHE PATH
-  "Path to NeuralAudio")
-set(DSP_PATH
-  "${CMAKE_SOURCE_DIR}/dsp" CACHE PATH "Path to DSP libraries")
-
+set(NAM_CORE_PATH "${CMAKE_SOURCE_DIR}/deps/NeuralAmpModelerCore" CACHE PATH
+  "Path to NeuralAmpModelerCore")
+set(AUDIO_DSP_TOOLS_PATH "${NAM_CORE_PATH}/Dependencies/AudioDSPTools" CACHE PATH
+  "Path to AudioDSPTools")
 set(MAX_EXTERNALS_DIR
   "$ENV{HOME}/Documents/Max ${MAX_VERSION}/Packages/neural/externals"
   CACHE PATH "Path to write Max externals to")
-
 set(LLVM_MINGW_PREFIX "${CMAKE_SOURCE_DIR}/deps/llvm-mingw" CACHE PATH
   "Path to llvm-mingw cross-compiler")
 
@@ -31,8 +29,8 @@ if(SUPERBUILD AND NOT CMAKE_CROSSCOMPILING)
     -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
     -DCMAKE_EXPORT_COMPILE_COMMANDS=${CMAKE_EXPORT_COMPILE_COMMANDS}
     -DMIN_DEVKIT_PATH=${MIN_DEVKIT_PATH}
-    -DNEURAL_AUDIO_PATH=${NEURAL_AUDIO_PATH}
-    -DDSP_PATH=${DSP_PATH}
+    -DNAM_CORE_PATH=${NAM_CORE_PATH}
+    -DAUDIO_DSP_TOOLS_PATH=${AUDIO_DSP_TOOLS_PATH}
     -DMAX_EXTERNALS_DIR=${MAX_EXTERNALS_DIR}
   )
 
@@ -60,12 +58,11 @@ if(SUPERBUILD AND NOT CMAKE_CROSSCOMPILING)
   return()
 endif()
 
-
 # Dependency checks.
 
 if(NOT EXISTS "${MIN_API_PATH}/include/c74_min.h")
   if(EXISTS "${MIN_DEVKIT_PATH}/.gitmodules" AND
-    NOT EXISTS "${MIN_API_PATH}/include")
+      NOT EXISTS "${MIN_API_PATH}/include")
     message(FATAL_ERROR
       "min-devkit submodule found but its own submodules are not initialized.")
   else()
@@ -74,22 +71,21 @@ if(NOT EXISTS "${MIN_API_PATH}/include/c74_min.h")
   endif()
 endif()
 
-if(NOT EXISTS "${NEURAL_AUDIO_PATH}/CMakeLists.txt")
+if(NOT EXISTS "${NAM_CORE_PATH}/CMakeLists.txt")
   message(FATAL_ERROR
-    "NeuralAudio not found at '${NEURAL_AUDIO_PATH}'.\n"
-    "Run: git submodule update --init --recursive")
+    "NeuralAmpModelerCore not found at '${NAM_CORE_PATH}'")
 endif()
 
-set(NAM_USE_INLINE_GEMM ON CACHE BOOL "" FORCE)
-set(NAM_ENABLE_A2_FAST ON CACHE BOOL "" FORCE)
-set(BUILD_INTERNAL_STATIC_WAVENET ON CACHE BOOL "" FORCE)
-set(BUILD_INTERNAL_STATIC_LSTM ON CACHE BOOL "" FORCE)
-set(BUILD_UTILS OFF CACHE BOOL "" FORCE)
+if(NOT EXISTS "${AUDIO_DSP_TOOLS_PATH}/dsp/ResamplingContainer/ResamplingContainer.h")
+  message(FATAL_ERROR
+    "AudioDSPTools not found at '${AUDIO_DSP_TOOLS_PATH}'")
+endif()
 
-set(CMAKE_WARN_DEPRECATED OFF CACHE BOOL "" FORCE)
-add_compile_options(-Wno-deprecated-literal-operator)
-add_subdirectory(${NEURAL_AUDIO_PATH} ${CMAKE_BINARY_DIR}/NeuralAudio)
-set(CMAKE_WARN_DEPRECATED "${_saved_warn_deprecated}" CACHE BOOL "" FORCE)
+set(NAM_ENABLE_A2_FAST    ON  CACHE BOOL "" FORCE)
+set(NAM_SAMPLE_FLOAT      ON  CACHE BOOL "" FORCE)
+set(NAM_USE_INLINE_GEMM   ON  CACHE BOOL "" FORCE)
+
+add_subdirectory(${NAM_CORE_PATH} ${CMAKE_BINARY_DIR}/NAMCore EXCLUDE_FROM_ALL)
 
 set(MIN_INCLUDES
   "${MIN_API_PATH}/include"
@@ -109,8 +105,7 @@ set_target_properties(neural_tilde PROPERTIES
   OUTPUT_NAME "neural~"
 )
 
-
-# Compiler options.
+# Platform-specific settings.
 
 if(APPLE)
   set_target_properties(neural_tilde PROPERTIES
@@ -119,17 +114,14 @@ if(APPLE)
     MACOSX_BUNDLE_BUNDLE_VERSION        "${PROJECT_VERSION}"
     MACOSX_BUNDLE_SHORT_VERSION_STRING  "${PROJECT_VERSION}"
   )
-
-  target_link_options(neural_tilde PRIVATE -undefined dynamic_lookup)
-
+  target_link_options(neural_tilde PRIVATE -undefined dynamic_lookup -flto)
   target_link_libraries(neural_tilde PRIVATE "-framework CoreFoundation")
-
   set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "" FORCE)
+  target_compile_options(neural_tilde PRIVATE -flto)
 endif()
 
 if(WIN32)
   set_target_properties(neural_tilde PROPERTIES SUFFIX ".mxe64")
-
   target_link_options(neural_tilde PRIVATE
     -stdlib=libc++
     -Wl,-Bstatic,-lc++,-lunwind,-lwinpthread,-Bdynamic
@@ -137,12 +129,10 @@ if(WIN32)
     -Wl,--gc-sections
     -flto
   )
-
   target_link_libraries(neural_tilde PRIVATE
     "${MIN_API_PATH}/max-sdk-base/c74support/max-includes/x64/MaxAPI.lib"
     "${MIN_API_PATH}/max-sdk-base/c74support/msp-includes/x64/MaxAudio.lib"
   )
-
   target_compile_options(neural_tilde PRIVATE
     -include ${CMAKE_SOURCE_DIR}/win_prefix.h
     -stdlib=libc++
@@ -152,25 +142,61 @@ if(WIN32)
   )
 endif()
 
-target_compile_definitions(neural_tilde PRIVATE NOMINMAX)
+set(NEURAL_TILDE_OPT_DEFS NDEBUG)
 
-target_compile_options(neural_tilde PRIVATE
+set(NEURAL_TILDE_OPT_FLAGS
   -O3
   -ffast-math
   -fno-finite-math-only
+  -funroll-loops
+)
+
+target_compile_definitions(neural_tilde PRIVATE NOMINMAX ${NEURAL_TILDE_OPT_DEFS})
+
+target_compile_options(neural_tilde PRIVATE
+  ${NEURAL_TILDE_OPT_FLAGS}
   -Wall
   -Wextra
   -Wno-unused-parameter
   -Wno-deprecated-literal-operator
 )
 
-target_include_directories(neural_tilde SYSTEM PRIVATE
-  "${NEURAL_AUDIO_PATH}/NeuralAudio"
-  "${NEURAL_AUDIO_PATH}/NeuralAudio/deps/RTNeural/modules/json"
-  ${MIN_INCLUDES}
-  ${DSP_PATH}
+file(GLOB_RECURSE NAM_SOURCES
+  "${NAM_CORE_PATH}/NAM/*.cpp"
 )
 
-target_link_libraries(neural_tilde PRIVATE NeuralAudio)
+add_library(namcore OBJECT ${NAM_SOURCES})
+
+target_compile_definitions(namcore PUBLIC
+  ${NEURAL_TILDE_OPT_DEFS}
+  $<$<BOOL:${NAM_ENABLE_A2_FAST}>:NAM_ENABLE_A2_FAST>
+  $<$<BOOL:${NAM_SAMPLE_FLOAT}>:NAM_SAMPLE_FLOAT>
+  $<$<BOOL:${NAM_USE_INLINE_GEMM}>:NAM_USE_INLINE_GEMM>
+)
+
+target_compile_options(namcore PRIVATE ${NEURAL_TILDE_OPT_FLAGS})
+
+if(APPLE OR WIN32)
+  target_compile_options(namcore PRIVATE -flto)
+endif()
+
+target_include_directories(neural_tilde SYSTEM PRIVATE
+  "${NAM_CORE_PATH}/NAM"
+  "${NAM_CORE_PATH}/NAM/wavenet"
+  "${NAM_CORE_PATH}/Dependencies/eigen"
+  "${NAM_CORE_PATH}/Dependencies/nlohmann"
+  "${AUDIO_DSP_TOOLS_PATH}/dsp"
+  ${MIN_INCLUDES}
+)
+
+target_include_directories(namcore SYSTEM PUBLIC
+  "${NAM_CORE_PATH}"
+  "${NAM_CORE_PATH}/NAM/wavenet"
+  "${NAM_CORE_PATH}/Dependencies/eigen"
+  "${NAM_CORE_PATH}/Dependencies/nlohmann"
+  "${AUDIO_DSP_TOOLS_PATH}/dsp"
+)
+
+target_link_libraries(neural_tilde PRIVATE namcore)
 
 install(TARGETS neural_tilde DESTINATION "${MAX_EXTERNALS_DIR}")
