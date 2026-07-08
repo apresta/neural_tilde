@@ -80,9 +80,11 @@ if(NOT EXISTS "${NEURAL_AUDIO_PATH}/CMakeLists.txt")
     "Run: git submodule update --init --recursive")
 endif()
 
+set(BUILD_NAMCORE ON CACHE BOOL "" FORCE)
 set(NAM_USE_INLINE_GEMM ON CACHE BOOL "" FORCE)
 set(NAM_ENABLE_A2_FAST ON CACHE BOOL "" FORCE)
 set(BUILD_INTERNAL_STATIC_WAVENET ON CACHE BOOL "" FORCE)
+set(BUILD_STATIC_INTERNAL_NAMA2 ON CACHE BOOL "" FORCE)
 set(BUILD_INTERNAL_STATIC_LSTM ON CACHE BOOL "" FORCE)
 set(BUILD_UTILS OFF CACHE BOOL "" FORCE)
 
@@ -167,6 +169,7 @@ target_compile_options(neural_tilde PRIVATE
 target_include_directories(neural_tilde SYSTEM PRIVATE
   "${NEURAL_AUDIO_PATH}/NeuralAudio"
   "${NEURAL_AUDIO_PATH}/NeuralAudio/deps/RTNeural/modules/json"
+  "${NEURAL_AUDIO_PATH}/deps/NeuralAmpModelerCore/Dependencies/AudioDSPTools/dsp"
   ${MIN_INCLUDES}
   ${DSP_PATH}
 )
