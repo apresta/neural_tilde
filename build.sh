@@ -16,9 +16,6 @@ if [[ "${CLEAN:-0}" == "1" ]]; then
   rm -f CMakeCache.txt Makefile cmake_install.cmake
 fi
 
-echo "==> Updating submodules"
-git submodule update --init --recursive
-
 # Fetch llvm-mingw cross-compiler.
 if [[ ! -x "${LLVM_MINGW_SENTINEL}" ]]; then
   echo "==> Resolving latest llvm-mingw release"

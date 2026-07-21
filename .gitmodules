@@ -1,6 +1,8 @@
 [submodule "deps/min-devkit"]
 	path = deps/min-devkit
 	url = https://github.com/Cycling74/min-devkit.git
+	branch = main
 [submodule "deps/NeuralAudio"]
 	path = deps/NeuralAudio
 	url = https://github.com/mikeoliphant/NeuralAudio.git
+	branch = main
